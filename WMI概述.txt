@@ -1,0 +1,590 @@
+VB（VBA）的优点多多，不再多说，它最为使用者诟病的是：在硬件控制和系统底层应用方面较差，动辄就要API，
+这意味你必须面对以下的困难：
+1、重回面向过程的编程方式，（实在让人头大）。
+2、在数以百计的函数中寻找合适的函数，然后理解并设置函数中的各项参数（还全是英文的）。
+好消息是你可以不用API也可以完成好多API的功能。你应该知道VBScript脚本，它是利用WMI对象来实现对系统操控的，（网上好多抓“肉鸡”的程序就是利用它做的，有点危险，跑题了哈），VBScript和VB都是一样的血统，所以我们可以在VB（VBA）中使WMI对象。
+认识和使用WMI 
+那么WMI是什么， WMI是Windows Management Instrumentation (Windows管理工具)的缩写，是内置在操作系统中核心的管理支持技术。基于由 Distributed Management Task Force (DMTF) 所监督的业界标准，通过它可以访问、配置、管理和监视几乎所有的 Windows 资源。很枯燥吧，不过你暂时可以按以下几点去简单理解：
+
+1、就像ADO对象是用于数据库操作的，WMI是一个用于管理Windows系统的对象。你可以把Windows系统的资源看做
+数据库，WMI就是ADO。
+2、引用WMI对象就可以实现管理Windows系统中的磁盘、事件日志、文件、文件夹、文件系统、网络组件、操作系
+设置、性能数据、打印机、进程、注册表设置、安全性、服务、共享、用户、组等等。
+3、WMI的类有自己的属性、方法，就像使用标准控件一样简单。（还是有区别）
+
+要使用WMI要满足一下条件，以后不再重复： 
+1、添加对“Microsoft WMI Scripting V1.2 Library”的引用。
+2、Windows里的WMI 服务（winmgmt）保证是运行的。
+说明一下，你在网上看到的使用WMI的方法大多是这样的：
+Set objWMIService = GetObject("winmgmts:\\.\root\cimv2")
+这是创建对象的方式，不用在工程中先引用“Microsoft WMI Scripting V1.2 Library”。为了不混淆，我们统一使用先引用方的式。二者只是句法不同，作用一样，两者的优缺点和在VBA中使用其他类是一样的（这不多解释了）。
+
+好了，先看一个使用WMI的例子，该例子列举本机上的所有系统服务的名字、状态、启动方式、登录身份、描述、路径。（就是用VBA做一个和控制面板里的服务组件一样的服务管理器）
+例1：打开VBA编辑器，单击“工具”—“引用“ ，添加“Microsoft WMI Scripting V1.2 Library”,
+在Sheet1中添加CommandButton1和如下代码：
+
+Option Explicit
+
+Dim WMILocator As New SWbemLocator '定义一个指向WMI的指针
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Dim i As Long
+Sheet1.Cells.Clear
+Sheet1.Range("a1:e1") = Array("名称", "状态", "启动类型", "登录身份", "描述")
+Set WMIServices = WMILocator.ConnectServer() 
+'利用指针连接到本机的WMI，返回一个对 SWbemServices 对象的引用
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_Service")
+'用对象WMIServices的InstancesOf方法返回Win32_Service类名标识的所有实例
+i = 2
+With Sheet1
+For Each WMIObject In WMIObjectSet '在WMIObjectSet（Win32_Service类集合）中遍历每个实例
+.Range("a" & i).Value = WMIObject.DisplayName '服务名称添加到a列
+If WMIObject.State = "Stopped" Then '判断对象State属性的值并转换为中文添加到B列
+.Range("b" & i).Value = "停止"
+Else
+.Range("b" & i).Value = "启动"
+End If
+If WMIObject.StartMode = "Disabled" Then '判断对象StartMode属性的值并转换为中文添加到C列
+.Range("c" & i).Value = "禁用"
+ElseIf WMIObject.StartMode = "Manual" Then
+.Range("c" & i).Value = "手动"
+Else
+.Range("c" & i).Value = "自动"
+End If
+.Range("d" & i).Value = WMIObject.StartName '将服务的登录身份添加到D列
+.Range("e" & i).Value = WMIObject.Description '将服务的描述添加到E列
+i = i + 1
+Next
+End With
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+我们没有用API函数的情况实现了枚举服务这个系统底层应用。也许你要问，这只是列举并不能对列举的服务进行任何操作，别急，每个WMIObject都有属性、方法，改变它的属性或使用其方法就可以控制服务的启动类型、状态（开启或关闭），这个以后再说。
+例中我们枚举"Win32_Service"类的每个服务得到了服务列表，把例中的"Win32_Service"换成Win32_Process类，就可以对本机的进程进行列举（你就做了一个VBA版的进程管理器）动手试试吧！附件里有（最好先别看，自己做一下），你会发现除了枚举的类其他都是一样的。
+照葫芦画瓢，把Set WMIObjectSet = WMIServices.InstancesOf("Win32_Service")中的"Win32_Service"换成其他类你就可以利用系统的其他资源了！你又要问了，我怎么知道有哪些类，不着急，后面会给出枚举系统中所有类的例子。（全是英文，懂英语会好些，根据类的名字判断他的作用，以Win32_Service为例Service就是服务，Win32_Service里包含的就是和系统服务有关的资源。）
+其实稍作修改，你还可以列举局域网中其他机器的服务和进程（前提是你要有足够的授权，比如系统管理员）
+
+总结一下使用WMI的步骤: 
+1、添加对“Microsoft WMI Scripting V1.1 Library”的引用。
+2、创建SwbemLocator指针。创建指针的目的是为了建立对WMI对象的引用实例，然后用这个实例操作WMI。
+用Dim WMILocator As New SwbemLocator定义语句直接创建就可以了。
+3、连接到WMI服务
+Set WMIServices = WMILocator.ConnectServer（）
+'利用指针连接到指定计算机的WMI服务，然后返回一个SwbemServices对象。
+4、获得WMI类的实例集合
+Set WMIObjectSet = WMIServices.InstancesOf(“类名”)
+'利用SwbemServices对象的InstancesOf 方法返回指定类名的所有实例
+5、使用WMI资源
+ 
+例1中第二步Set WMIServices = WMILocator.ConnectServer()中使用ConnectServer方法建立了对WMI对象的引用实例，该方法的句法如下：
+WMILocator.ConnectServer(strServer, strNamespace, strUser, strPassword, strLocale, StrAuthority, iSecurityFlags, ObjwbemNamedValueSet)
+下面说一下这八个参数（前六个参数全是字符类型）：
+1、strServer： 计算机名字。缺省为本机，本机也可以用”.”表示，如果对局域网中的其他机器操作，在此处将”.”换成该机器名字。
+2、strNamespace ：需要登录的CIM命名空间，缺省值为："root\CIMV2"，代表我们工作的WIN32环境。（CIM就是一个存储库，WMI所有的类被分组存储到不同的命名空间中，命名空间是表示一个特定的管理区域的类的逻辑组，关于命名空间我们后面再说并给出枚举所有命名空间的例子）。例如：
+Set WMIServices = WMILocator.ConnectServer(“.”， "root\CIMV2")，连接到本地计算机的" "root\CIMV2"命名空间，返回一个对 SWbemServices 对象的引用。
+3、strUser ：用户名，一般为指定计算机上管理员帐号，仅用于远程操作。
+4、strPassword：密码，对应用户名的密码，和第三部分一起使用。例如：
+Set WMIServices = WMILocator.ConnectServer(“pc1” ， "root\CIMV2"，”administrator”,”123”)，以administrator用户（密码为：123）连接到PC1的计算机的"root\CIMV2"命名空间，返回一个对 SWbemServices 对象的引用。
+5、strLocale ：本地化代码（和语言有关），通常省略。
+6、StrAuthority ：权限信息，很少使用，可以省略。
+7、iSecurityFlags ：没有实现，如果指定必须为0。
+8、ObjwbemNamedValueSet：很少使用，当为连接请求提供服务时，一些提供程序可能需要使用这个参数。
+
+了解了这些后，回到例1，Set WMIServices = WMILocator.ConnectServer()这句的完整写法应该为：
+Set WMIServices = WMILocator.ConnectServer(“.”, "root\CIMV2")。
+我们的例子中（）里参数为空，就是所有参数使用了默认值，因为ConnectServer方法的所有参数都是可选的。
+如果连接到本机，通常情况下只需要设置strNamespace参数，其它参数都可以省略，但如果连接到远程计算机，一般需要对前4个参数进行设置。
+下面讨论获得WMI类的实例集合的几种方法
+1、InstancesOf方法。 
+该方法用于获得指定类中所有实例，语法如下：
+SwbemServices.InstancesOf(strClass,[iFlags][objWbemNamedValueSet])
+strClass：要查询的类名（字符串）
+iFlags：操作标志，一般使用缺省值（即wbemFlagReturnImmediately），可省略。
+objWbemNamedValueSet：未用。
+例2：本例枚举你机器上所有U盘的物理序列号（不是卷标哦）U盘的信息存储在Win32_USBHub类中。添加一个CommandButton1到sheet1，代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator '定义一个指向WMI的指针
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Dim i As Long
+Sheet1.Cells.Clear
+Set WMIServices = WMILocator.ConnectServer(".", "root\CIMV2") '可以省略，写上是为了更好理解参数的使用
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_USBHub")
+i = 1
+With Sheet1
+For Each WMIObject In WMIObjectSet
+.Range("a" & i).Value = "U盘" & i
+.Range("b" & i).Value = Split(WMIObject.DeviceID, "\")(2) '物理序列号添加到B列
+i = i + 1
+Next
+End With
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+因为是枚举了所有USB实例，所以除了U盘还包括机器上的USB接口，我的机器上真正的U盘只一个。（其实你可以利用后面的方法把USB接口排除只留U盘）
+它的缺点显而易见：
+1、类的实例较多时速度会慢（如果针对局域网中其他计算机使用WMI,网络流量较大）。
+2、再者，你只需要特定的几个或一个类的实例时，显然这种方法效率不高。
+针对以上情况，我们可以使用以下方法获取类的一个或符合条件的一组实例：
+2、使用ExecQuery方法。 
+该方法配合WQL语句用于获得指定类中所有实例或符合条件的一组实例，语法参数格式如下：
+SwbemServices.ExecQuery(strQuery,[strQueryLanguage],[iFlags],[objWbemNamedValueSet])
+strQuery：WQL查询语句。
+strQueryLanguage：表示所使用的查询语言，可以省去，如添加的话，只能用"WQL"。
+iFlags和objWbemNamedValueSet的解释同InstancesOf方法。
+
+例3：获取机器上网卡的名称和其物理地址（它的信息存储在Win32_NetworkAdapterConfiguration类）使用ExecQuery方法和WQL语句排除系统的红外、VPN WAN等端口。添加一个CommandButton1到sheet2，代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Dim i As Long
+Sheet2.Cells.Clear
+Sheet2.Range("a1:e1") = Array("名字", "物理地址", "IP地址", "子网掩码", "网关")
+Set WMIServices = WMILocator.ConnectServer() '省略参数
+Set WMIObjectSet = WMIServices.ExecQuery("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE DatabasePath Is Not NULL ")
+i = 2
+With Sheet2
+For Each WMIObject In WMIObjectSet
+.Range("a" & i).Value = WMIObject.Description '名字添加到a列
+.Range("b" & i).Value = WMIObject.MACAddress '物理地址添加到B列
+.Range("c" & i).Value = WMIObject.IPAddress
+.Range("d" & i).Value = WMIObject.IPSubnet
+.Range("e" & i).Value = WMIObject.DefaultIPGateway
+i = i + 1
+Next
+End With
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+“SELECT * FROM Win32_NetworkAdapterConfiguration WHERE DatabasePath Is Not NULL "这句是否很熟悉，这是WQL语句（SOL的子集，具体的使用方法我还没找到，估计和SQL的方法一样）。
+说明：
+A、如果要在例1中只返回启动方式为“自动”的服务只需改Set WMIObjectSet = WMIServices.InstancesOf("Win32_Service")为Set WMIObjectSet = WMIServices.ExecQuery("SELECT * FROM Win32_Service WHERE StartMode='auto'")就可以了。该句的意思为：从Win32_Service类中返回StartMode属性为auto的所有实例（包括实例的所有属性），“*”代表选择实例的所有属性。
+B、“SELECT * FROM Win32_NetworkAdapterConfiguration WHERE DatabasePath Is Not NULL "把这句的where子句全删除，你会发现多出来许多东西。
+C、语句中使用了“*” ，说明获得实例的所有属性，如果只需实例的要一个或几个属性该如何呢?例如例中我们只用到了名称和地址两个属性，把该句改为："SELECT Description, MACAddress FROM Win32_NetworkAdapter WHERE DatabasePath Is Not NULL " 。效果是一样的。以上三点自己动手试一下。
+3、使用Get方法。 
+该方法用于获得指定类中符合条件的一个实例，语法参数格式如下：
+SwbemServices.Get([strObjectPath][.KeyProperty='Value'],[iFlags],[objWbemNamedValueSet])
+strObjectPath：类的名字
+KeyProperty：主键属性名，Value是指定的主键属性值。通过指定此项就可返回类中KeyProperty属性值为Value的唯一的实例。
+iFlags和objWbemNamedValueSet与ExecQuery方法中的说明相同。
+例4：CPU的信息存储在Win32_Processor类里。通常我们只有一个CPU，再用上面枚举全部或部分实例的方法显得多余，本例获取我们的第一个CPU的相关信息。添加一个CommandButton1到sheet3，代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Sheet3.Cells.Clear
+Sheet3.Range("a1:e1") = Array("类型", "频率", "二级缓存", "接口类型", "核心数")
+Set WMIServices = WMILocator.ConnectServer() '省略参数
+Set WMIObject = WMIServices.Get("Win32_Processor.DeviceID='cpu0'")
+With Sheet3
+.Range("a2").Value = WMIObject.Name '添加cpu类型，cpu发展太快，wmi没跟上，可能和实际不符
+.Range("b2").Value = WMIObject.CurrentClockSpeed / 1000 & "GHz"
+.Range("c2").Value = WMIObject.L2CacheSize & "K"
+.Range("d2").Value = WMIObject.SocketDesignation
+.Range("e2").Value = WMIObject.NumberOfLogicalProcessors & "核"
+.Range("f2").Value = WMIObject.ProcessorId
+End With
+Set WMIObject = Nothing
+End Sub
+好了，现在你对使用WMI应该比较熟悉了吧。如果你感觉还是比较混乱的话，我们在回顾一下：
+1、用Dim WMILocator As New SwbemLocator建立对WMI对象的引用实例
+2、用Set WMIServices = WMILocator.ConnectServer（机器名，命名空间）连接到指定计算机的指定名字空间的WMI服务
+3、用Set WMIObjectSet = WMIServices.InstancesOf(“类名”)，返回指定类名的所有实例
+ 
+WMI的体系结构 
+下面的内容很枯燥乏味，建议你耐心看看，原因有三个：
+1、你可以理解WMI的内部运作机制，即你的程序是如何一步步运行，最后得到你想要的结果的。
+2、你可以知道WMI有多少类，哪些我们可以使用，各个类负责操控的系统资源是什么。比如要想获得硬盘的信息用什么类？学习下面的内容你自己就可以找到。
+3、每个类都能提供什么信息，比如要想的到逻辑磁盘的卷标怎么办？你也可以自己找到。
+先来看看WMI的体系结构图
+不会插入图片啊？
+1、托管资源：是所有逻辑或物理组件，也就是计算机系统、磁盘、外围设备、事件日志、文件、文件夹、文件系统、网络组件、操作系统子系统、打印机、进程、注册表设置、安全性、服务、共享、SAM 用户和组、等Windows 资源。就是我们编程想要的得到的东西。
+2、WMI 提供程序：在 WMI 和托管资源之间扮演着通讯员的角色。它把使用者请求使用托管资源的信息发送到 WMI 托管资源。
+3、CIMOM（读作 see-mom）处理使用者（就是我们）和提供程序之间的交互，也就是规范和管理使用者如何与WMI 提供程序之间交互。它负责根据使用者请求使用的托管资源的具体内容找到合适的提供程序。
+4、CIM 储存库 ：wmi要求托管资源用一个统一的架构表示来自不同源的配置和管理信息。也就是不同种类的托管资源要按照统一的结构和模式进行配置和管理以方便编程者使用，CIM 储存库就是这个模板。
+5、WMI 脚本库：提供自动化对象集，脚本语言（如 VBScript、Jscript等）利用它访问 WMI 基础结构。就是我们编程使用的语句（代码），必须符合WMI 脚本库的要求。
+下面以例1为例说明内部工作流程：
+第一步、把我们的要求以代码的形式给出（就是写代码了），经WMI 脚本库检查符合要求后，把我们要得到的具体托管资源的信息发送给CIMOM。
+第二步、我们要求获得有关系统服务（Win32_Service）的托管资源信息，CIMOM据此为我们找到了合适的WMI 提供程序（Win32 提供程序）。
+第三步、WMI 提供程序根据我们的要求从托管资源中提取Win32_Service类并返回给CIMOM。
+第四步、CIMOM根据CIM 储存库架构的要求对Win32_Service类中的信息进行整理，最后提供给使用者。（我们得到了系统的所有服务）
+如果你实在是不明白也没关系，毕竟是内部工作机制，不妨碍我们使用。下面的内容很重要！！！ 
+要想根据自己的要求利用WMI获得更多系统信息，你比须了解CIM 储存库的结构。
+CIM 储存库的结构化视图 — WMI 架构
+
+1、命名空间：是 CIM 使用的分区机制，控制托管资源类定义的范围和可见性。我们在代码中使用的类（托管资源）根据功能，位置等等被划分为很多组分别存储在多个命名空间中。这里你可以把命名空间看做多个独立的数据库，就像ADO可以操作数据库一样，WMI就是用来操作命名空间这些特殊的数据库的工具。
+多数为 Windows 托管资源的类驻留在 root/cimv2 命名空间中（我们编程主要使用这个空间），另一方面，如果要操作注册表你要用到root\DEFAULT 命名空间。
+例5、该程序枚举机器上的命名空间，添加CommandButton1，代码如下：
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Sheet1.Cells.Clear
+i = 1
+Sheet3.Cells.Clear
+i = 1
+Set WMIServices = WMILocator.ConnectServer(".", "root") 
+建立到机器根命名空间的链接
+Set WMIObjectSet = WMIServices.InstancesOf("__NAMESPACE") 
+"__NAMESPACE"类中存储所有命名空间的名字
+For Each WMIObject In WMIObjectSet
+Sheet3.Range("a" & i) = WMIObject.Name
+i = i + 1
+NextFor Each WMIObject In WMIObjectSet
+Sheet1.Range("a" & i) = WMIObject.Name
+i = i + 1
+Next
+End Sub
+如上代码只是枚举了上图中“\root”下的空间名，如果你需要所有空间名，您需要修改例5 来递归地连接并枚举每个命名空间。附件中有。
+
+2、类表示计算机所拥有的东西。就像前面的几个例子一样，不同的类里存放了不同的系统资源的信息。你可以把类看做是数据库（命名空间）里的一张表，类的每个实例和它的属性、方法就构成了该表的多个记录。你可以把类的属性看做记录的字段。
+例2中Set WMIServices = WMILocator.ConnectServer(".", "root\CIMV2") 这句连接到CIMV2这个数据库。
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_USBHub")这句打开了Win32_USBHub这张表。
+For Each WMIObject In WMIObjectSet
+.Range("a" & i).Value = "U盘" & i
+.Range("b" & i).Value = Split(WMIObject.DeviceID, "\")(2) '物理序列号添加到B列
+i = i + 1
+Next
+通过循环枚举类的每个实例并列举了类的几个属性（这相当于我们查询了表里的每条记录并获取了记录中我们想要的字段的值）。
+如上图所示，类被分为三大类：
+A、系统类：是支持内部 WMI 配置和操作（例如，命名空间配置、命名空间安全性、提供
+程序注册以及事件订阅和通知）的类。其特征是类名前有一条下划线。
+B、核心和公共类：它们表现抽象类用于派生和创建特定技术的扩展类。其特征是类名前有 CIM_ 前缀。图 1 中四个以 CIM_ 开头的类是核心和公共类。
+C、扩展类：是由系统和应用程序软件开发人员创建的特定技术类。其特征是类名前有 WIN32_ 前缀。但是，StdRegProv 类是用于注册表管理任务的扩展类。并且StdRegProv 类在 root\DEFAULT 命名空间而非 root\cimv2 中。
+类还可以被划分为以下三类：
+A、抽象类 ：是用于定义新类的模版。即其他类都是由抽象类构建（或派生）的。其特征
+为：拥有Abstract 类限定符（后面会说到）并且其值为TRUE。抽象类极少在 WMI 脚本中使用，这是因为您不能检索抽象类的实例。
+B、动态类 ：是为从提供程序动态检索的 WMI 托管资源建模的类。其特征为：拥有
+Dynamic 类限定符。动态类是我们在 WMI中使用的最常见的类。
+C、静态类 ：定义物理存储在 CIM 储存库中的数据。其特征为：既没有Abstract 类限定符也没有Dynamic 类限定符。静态类类型最常用于系统类的定义。静态类极少在 WMI 脚本中使用。
+总结一下： 
+1、系统类可以是抽象的或静态的。我们不会用到系统类，除非你要订阅 WMI 事件。
+2、核心和公共类中除了CIM_DataFile、CIM_DirectoryContainsFile、CIM_ProcessExecutable 和 CIM_VideoControllerResolution可以为我们利用外，其他全是抽象类。（我们几乎不用它）
+3、扩展类几乎全是动态类，这意味着扩展类是您将要在 WMI中使用的主要的类。
+4、我们只需关注以WIN32_开头的类，还有四个以CIM_的类以及StdRegProv 类。
+例6、该程序以root\CIMV2命名空间为例枚举该命名空间下的类，如果需要其他命名空间的类列表，只需更换root\CIMV2为其他空间名即可，添加CommandButton1，代码如下：
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Sheet1.Cells.Clear
+Set WMIServices = WMILocator.ConnectServer(".", "root\CIMV2")
+Set WMIObjectSet = WMIServices.SubclassesOf() 
+SubclassesOf方法返回指定命名空间下所有的类及其子类
+i = 1
+For Each WMIObject In WMIObjectSet
+Sheet1.Range("a" & i) = Split(WMIObject.Path_.Path, ":")(1) 
+类的实例中的.Path_.Path属性含有类的名字
+i = i + 1
+Next
+End Sub
+
+通过以上学习，你应该可以根据自己的需要在合适的命名空间找到需要的类了。下面通过一个例子说明如何根据需要找到合适的资源。
+例7、我现在想要得到磁盘的物理序列号该怎么做（不是逻辑的，注意dir命令显示的那串数字不用格式化就可以轻松更改，网上软件一大堆，这个物理序列号用软件是无法更改的，出厂时就定型了）根据了解的命名空间的知识很容易知道我们应该连接到"root\CIMV2"命名空间，根据了解的类的知识，自然的我们会在带WIN32_ 前缀的类中查找，如果你的英语好的话，你会发现Win32_PhysicalMedia这个类，PhysicalMedi直译为物理媒体，就是硬件了，试一下吧，查看Win32_PhysicalMedia的属性（下面会给出枚举类的属性的例子）发现有个SerialNumber，翻译为串号，就是序列号了，一切就绪，动手吧！SHEET里添加CommandButton1，代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Dim i As Long
+Sheet4.Cells.Clear
+Set WMIServices = WMILocator.ConnectServer(".", "root\CIMV2") '可以省略，写上是为了更好理解参数的使用
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_PhysicalMedia")
+i = 1
+With Sheet4
+For Each WMIObject In WMIObjectSet
+.Range("a" & i).Value = "磁盘" & i
+.Range("b" & i).Value = Trim(WMIObject.SerialNumber) '物理序列号添加到B列
+i = i + 1
+Next
+End With
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+再举一个例子
+例8、我现在想要得到机器上所有共享文件夹该怎么做？首先我们应该连接到"root\CIMV2"命名空间，在带WIN32_ 前缀的类中查找，你会发现"Win32_Share"这个类，Share就是共享，试一下吧！CommandButton1，代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator '定义一个指向WMI的指针
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Dim i As Long
+Sheet1.Cells.Clear
+Sheet1.Range("a1:b1") = Array("共享名", "路径")
+Set WMIServices = WMILocator.ConnectServer()
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_Share")
+i = 2
+With Sheet1
+For Each WMIObject In WMIObjectSet
+.Range("a" & i).Value = WMIObject.Name
+.Range("b" & i).Value = WMIObject.Path
+i = i + 1
+Next
+End With
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+下一节内容学习类的属性和方法，让例1的服务管理器和进程管理器实现一些操作，再配合几个例子说明。
+你应该发现我们使用WMI的最终目的就是为了得到类的属性，从属性中取得我们需要的值，例如例1里DisplayName、StartMode、Stopped、StartName、Description都是类的属性，分别存储着服务的"名称", "状态", "启动类型", "登录身份", "描述"。你可能要问：每个类中有多少属性，我们想要的结果在那个属性里。
+类的属性和方法 
+下面用两个例子解决解决你的问题
+例8、该例可列出指定的类的所有属性，sheet1里添加CommandButton1，代码如下：
+Dim WMILocator As New SWbemLocator '定义一个指向WMI的指针
+Dim WMIServices As SWbemServices
+Dim WMIObject As SWbemObject
+Dim WMIProperty As SWbemProperty '定义变量指向类的属性
+
+Private Sub CommandButton1_Click()
+Sheet1.Columns(2).Clear
+Sheet1.Range("b1") = "属性"
+Set WMIServices = WMILocator.ConnectServer()
+Set WMIObject = WMIServices.Get("Win32_Process")
+i = 2
+For Each WMIProperty In WMIObject.Properties_
+Sheet1.Range("b" & i).Value = WMIProperty.Name
+i = i + 1
+Next
+Set WMIObject = Nothing
+Set WMIProperty = Nothing
+Set WMIQualifier = Nothing
+End Sub
+更换例中的类名就可以列出其他类的属性了。
+获取类的属性值只是从系统获得信息，而使用类的方法我们才能操控系统。
+对上例左如下修改就可以枚举了的方法了
+1、用Dim WMIMethod As SWbemMethod '定义变量指向类的方法替换Dim WMIProperty As SWbemProperty
+2、修改循环为：
+For Each WMIMethod In WMIObject.Methods_
+Sheet1.Range("a" & i).Value = WMIMethod.Name
+i = i + 1
+Next
+替换Set WMIObject = WMIServices.Get("Win32_Process")中的类名就可以枚举其他类的属性和方法了。
+
+现在我们还没有接触到类的方法，很抱歉，例1中的服务管理器和进程管理还不能进行任何操作，下面我们就修改例1，借此学习类的方法
+例1 修改，sheet1里添加CommandButton2和CommandButton3，利用上面例子提供的方法查看Win32_Process类的属性和方法，发现它有一个StopService方法（停止服务）和StartService方法（启动服务）代码如下：
+Private Sub CommandButton2_Click()
+If ActiveCell.Count = 1 And ActiveCell.Column = 1 And ActiveCell.Row > 2 And ActiveCell.Value <> "" Then
+Set WMIServices = WMILocator.ConnectServer()
+Set WMIObjectSet = WMIServices.ExecQuery("SELECT * FROM Win32_Service WHERE Caption = '" & ActiveCell.Value & "'")
+For Each WMIObject In WMIObjectSet
+WMIObject.STARTService
+此句使用STARTService方法启动你所选的服务
+Next
+End If
+End Sub
+
+Private Sub CommandButton3_Click()
+If ActiveCell.Count = 1 And ActiveCell.Column = 1 And ActiveCell.Row > 2 And ActiveCell.Value <> "" Then
+Set WMIServices = WMILocator.ConnectServer()
+Set WMIObjectSet = WMIServices.ExecQuery("SELECT * FROM Win32_Service WHERE Caption = '" & ActiveCell.Value & "'")
+For Each WMIObject In WMIObjectSet
+WMIObject.STOPService
+此句使用STOPService方法停止你所选的服务
+Next
+End If
+End Sub
+单击按钮后再服务管理器界面单击“操作”—“刷新”后查看结果。程序没有考虑容错功能，要想做得逼真，还需增加判断”Stopped”(是否已启动)和”Disabled”(是否已禁用)属性的语句，根据判断的结果决定是否对所选项进行启动和停止操作，自己动手试一下。查看Win32_Service类的方法，还有PauseService（暂停）、ResumeService（继续）、ChangeStartMode（改变启动方式）等许多方法，利用这些方法你还可以让程序实现更多功能。
+把例子中的类换成"Win32_Process" ，同时把例子中STOPService 方法换成"Win32_Process"类的Terminate方法（使结束、停止），你的程序就可以停止进程了（同样的道理，须增加判断进程是否为系统进程，是否可以被停止）。附件中仅做了停止IE。
+你可以用以上例子随时知道哪些服务和进程处于运行状态，根据你的需要可以随时停止或启动它。
+上面例子中的方法没有参数，但是有的方法需要参数。在看一个有参数的方法的例子： 
+例9、关闭你的计算机（例子中为了测试实际是注销功能），VB中关闭计算机用API药写好长的代码，也可以用shell shutdown语句，这种方法能用 的前提是你的机器中必须要有SHUTDOWN.EXE这个程序，这个例子使用"Win32_OperatingSystem"类的Win32Shutdown方法实现。它的好处是：即使SHUTDOWN.EXE已被你删除也会照样关机，添加按钮，代码如下:
+Option Explicit
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Set WMIServices = WMILocator.ConnectServer()
+'WMIServices.Security_.Privileges.Add wbemPrivilegeShutdown, True
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_OperatingSystem")
+For Each WMIObject In WMIObjectSet
+WMIObject.Win32Shutdown 0&
+Next
+Application.Quit
+End Sub
+参数说明：
+0 -退出(注销) ， 1 -关机， 2 -重启动
+4 -强制退出(注销)，即不通知现在活动应用程序让其先自我关闭
+5 -强制关机， 6 -强制重启动， 8 -关闭电源， 12--强制关闭电源
+除了方法，更改某些属性的值也能实现对系统的操作，再看一个例子： 
+Option Explicit
+
+Dim WMILocator As New SWbemLocator '定义一个指向WMI的指针
+Dim WMIServices As SWbemServices
+Dim WMIObjectSet As SWbemObjectSet
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Set WMIServices = WMILocator.ConnectServer()
+'WMIServices.Security_.Privileges.Add wbemPrivilegeCreatePagefile, True
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_PageFileSetting")
+For Each WMIObject In WMIObjectSet 
+WMIObject.Name = "d:\pagefile.sys"
+WMIObject.InitialSize = "512"
+WMIObject.MaximumSize = "1024"
+WMIObject.Put_
+Next
+Set WMIObject = Nothing
+Set WMIObjectSet = Nothing
+End Sub
+修改后可以右键“我的电脑”查看（不用我说了吧），重启后生效。（与界面操作不同，不会出现要求重启的对话框）
+如果你把例10里的参数修改为注销以外的值，或者你运行例11，恰巧你的虚拟内存不再d盘，你会得到一个错误提示。这是因为改动系统设置等操作关系到系统的安全，盖茨不会让你轻易实现的，你需要增加特殊的权限。如果要想不受限制运行以上两例，你要把两例中被注释掉的以下两句取消注释。这两句就是用于增加权限的。
+'WMIServices.Security_.Privileges.Add wbemPrivilegeCreatePagefile, True
+'WMIServices.Security_.Privileges.Add wbemPrivilegeShutdown, True
+按说在第二部分开头提到的ConnectServer方法参数的第六部分（StrAuthority ：权限信息）设置权限也可以，但是经过N次实验，在那里设置权限都以失败告终。（why，还没有找到关于这个参数的具体设置说明，那位知道，拜托告诉我）
+另外，如果你急于练习，用前面的方法获取了一个类的实例并给实例的属性赋值的话，十有八九你同样会得到一个错误提示。这是因为并不是每一个属性都是可写的，并且大部分属性是只读的，（在VBA中也是这样，只不过VBA中的属性大部分是可读写的）。微软真的很麻烦啊，我怎么知道那个属性是可写的？属性是否可写是由属性的限定符决定的，不过列出每个属性的限定符真的很简单！
+上节遗留了两个问题，先来看第一个——限定符 
+其实不仅仅属性有限定符，类本身和类的方法也有限定符，根据名字理解，限定符就是对它们的使用进行了限制，我们必须按规定使用它们。说白了就是它们能干什么、不能干什么。
+我们用Dim定义的WMIObject 、WMIProperty、WMIMethod、对象都有个Qualifiers_属性，里面包含限定符的信息（它是一个集合），用Dim WMIQualifier As SWbemQualifier定义一个WMIQualifier对象，然后在以上三种对象的Qualifiers_集合中遍历就可以枚举限定符了。如何枚举限定符就不在详细说明了，更新后的例子里已可以枚举限定符了。
+
+关于限定符WMI有详细的列表，不一一列举了，简单说几个我认为比较重要的：
+1、类限定符：类限定符提供了关于使用类的操作信息。例如：
+A、Abstract：表明该类是抽象类
+B、Dynamic：表明该类是动态类
+C、Association：表明该类是关联类
+D、没有以上三个限定符的表明该类是静态类
+E、Provider 限定符告诉您服务这个类的提供程序。例如，Win32_Service 类的 Provider 限定符告诉您这个类使用 CIMWin32 提供程序 (cimwin32.dll)， Win32_NTLogEvent 类的 Provider 限定符表明Win32_NTLogEvent 类使用 MS_NT_EVENTLOG_PROVIDER 提供程序 (ntevt.dll)。
+F、Privileges 限定符告诉您要使用这个类所需要的专用特权。例如，Win32_NTLogEvent 类的 Privileges 限定符告诉您在 Win32_NTLogEvent 类可以用来管理安全日志前，SeSecurityPrivilege 必须被启用。
+2、属性限定符：属性限定符提供关于使用每个属性的信息。例如：
+A、CIMType 限定符告诉您该属性的数据类型。
+B、Read 限定符指出这个属性是可读的。
+C、Write 限定符指出您是否可以修改属性的值。例如，例11里Win32_PageFileSetting类的 WMIObject.InitialSize属性被标记为可写，例1中所有 Win32_Service 属性都没有write限定符，说明它们都是只读的。
+D、Key 限定符指出该属性是类的键，并且用于识别在相同资源集合中的托管资源的唯一实例。 
+3、方法限定符：方法限定符提供关于使用每个方法的信息。例如： 
+A、ValueMap 限定符列举方法的返回值。 
+B、Privileges 限定符告诉您调用这个方法所需的专用特权。例如例9 Win32_OperatingSystem类的Win32Shutdown方法的Privileges限定符告诉你要使用该方法你要拥有wbemPrivilegeShutdown特权。
+第二个问题——特殊权限 
+就像例9和11一样有些类和属性必须拥有它们的限定符规定的特权才能使用，不啰嗦了，给出特权的取值和说明列表：
+常量名 常量值 说明
+wbemPrivilegeCreateToken 1 创建一个Token对象（仅赋予本地安全权限）
+wbemPrivilegePrimaryToken 2 替换进程一级的Token对象（仅赋予本地安全权限）
+wbemPrivilegeLockMemory 3 锁定内存页面
+wbemPrivilegeIncreaseQuota 4 增加配额
+wbemPrivilegeMachineAccount 5 在域中创建机器账户
+wbemPrivilegeTcb 6 用作操作系统的一部分，主要用来提供背景服务，一般不赋予任何用户账户
+wbemPrivilegeSecurity 7 管理审计并查看、保存、删除安全日志
+wbemPrivilegeTakeOwnership 8 占有对象（比如文件夹、打印机）
+wbemPrivilegeLoadDriver 9 加载和卸载设备驱动
+wbemPrivilegeSystemProfile 10 记录系统性能
+wbemPrivilegeSystemtime 11 设置系统时间
+wbemPrivilegeProfileSingleProcess 12 记录独立进程（的示范性能）
+wbemPrivilegeIncreaseBasePriority 13 改变进程的执行优先权
+wbemPrivilegeCreatePagefile 14 创建页面文件
+wbemPrivilegeCreatePermanent 15 创建永久共享对象
+wbemPrivilegeBackup 16 创建备份文件和目录而不用考虑文件系统的权限
+wbemPrivilegeRestore 17 还原文件和目录而不用考虑文件系统的权限
+wbemPrivilegeShutdown 18 在本机关闭系统
+wbemPrivilegeDebug 19 调试程序，一般由编程者用于处理比较低级的对象，比如线程
+wbemPrivilegeAudit 20 生成安全审计的日志条目
+wbemPrivilegeSystemEnvironment 21 修改固件环境值（存储在非易失性RAM中，一般存储在基于RISC的系统
+wbemPrivilegeChangeNotify 22 避开遍历，允许访问目录中的子文件夹而不用访问它们的父文件夹
+wbemPrivilegeRemoteShutdown 23 远程关闭系统
+wbemPrivilegeUndock 24 从坞站移除计算机
+wbemPrivilegeSyncAgent 25 同步目录服务器数据
+wbemPrivilegeEnableDelegation 26 使计算机和用户账户能被信任以进行委派
+要添加特权，请在利用指针连接到本机的WMI，返回一个对 SWbemServices 对象的引用后进行，即Set WMIServices = WMILocator.ConnectServer() 语句之后，语法如下：
+WMIServices.Security_.Privileges.Add 特权值, True。
+例9、11分别用以下两句获得了关机和修改页面文件的权利
+WMIServices.Security_.Privileges.Add wbemPrivilegeShutdown, True
+'WMIServices.Security_.Privileges.Add wbemPrivilegeCreatePagefile, True
+第三个问题 
+WMI主要和管理系统有关，并且可以进行远程控制，所以安全性是很重要的。安全性主要影响操作远程计算机。它要求模拟和身份验证设置（当然还包括用户和口令）。原因如下：
+1、如果用于远程连接的远程计算机和帐户配置不当，Windows 防火墙可能会造成访问被拒绝的错误（例如“RPC 服务器不可用”错误）。
+如果你要操作远程计算机，请根据情况设置以下两项。 
+2、Windows 2000 和更高版本的默认 Impersonation（模拟） 级别为“Impersonate”，但之前的版本Windows的默认Impersonation 级别为“Identify”。如果使用WMI的机器和被操作的机器的系统平台不一样，您要指定 Impersonation（模拟）级别以实现不同版本的协调和兼容。
+模拟类型的取值：
+常量值 常量名 说明
+wbemImpersonationLevelAnonymous 1 没有提交任何连接证书，一般是失败，默认使用原版本的WMI1.01
+wbemImpersonationLevelIdentify 2 要求远程对象标识调用程序证书，一般是失败，默认使用WMI1.1
+
+wbemImpersonationLevelImpersonate 3 允许远程对象使用调用程序证书，推荐设置，默认使用WMI1.5
+
+wbemImpersonationLevelDelegate 4 当连接到其他对象时允许远程对象使用调用程序证书
+要添加模拟级别，请在利用指针连接到本机的WMI，返回一个对 SWbemServices 对象的引用后进行，即Set WMIServices = WMILocator.ConnectServer() 语句之后，语法如下：
+WMIServices.Security_. ImpersonationLevel.Add 模拟级别值, True。
+3、获得和远程计算机的通讯后，机器之间传递的数据有时是很重要的，例如使用ConnectServer方法将用户名和密码作为参数发送，这些数据不能被别人截获。Authentication（身份验证）级别规定机器间传递的数据如何进行安全保护。
+验证类型的取值：
+常量值 常量名 说明
+WbemAuthenticationLevelDefault 0 默认的Windows验证设置t 
+WbemAuthenticationLevelNone 1 没有验证
+WbemAuthenticationLevelConnect 2 仅在初始连接期间验证
+WbemAuthenticationLevelCall 3 仅在每个服务器请求开始时验证 
+WbemAuthenticationLevelPkt 4 验证来自客户的每个数据包 
+WbemAuthenticationLevelPktIntegrity 5 验证来自客户的每个数据包，并校验数据没有被篡改
+WbemAuthenticationLevelPktPrivacy 6 对数据加密，最安全的验证
+要添加模拟级别，请在利用指针连接到本机的WMI，返回一个对 SWbemServices 对象的引用后进行，即Set WMIServices = WMILocator.ConnectServer() 语句之后，语法如下：
+WMIServices.Security_. AuthenticationLevel.Add身份验证值, True。
+总结一下使用WMI的基本步骤：
+1、根据你想要的结果寻找合适的类
+2、查看类的限定符，如果存在Privileges 限定符，记下Privileges 限定符的值。
+3、在利用指针连接到本机的WMI，返回一个对 SWbemServices 对象的引用后，即Set WMIServices = WMILocator.ConnectServer() 语句之后用
+WMIServices.Security_. AuthenticationLevel.Add Privileges 限定符的值, True。添加特权。
+4、如果要用到类的属性，请查看你要使用的属性的限定符，如果存在Privileges 限定符，记下
+Privileges 限定符的值。添加特权（方法同上）。
+5、如果要用到类的方法，请查看你要使用的方法的限定符，如果存在Privileges 限定符，记下Privileges 限定符的值。添加特权（方法同上）。
+再来看量个例子：
+例12，设置系统的时间。（例子中把系统时间设置为我注册ExcelHome的时间2011/03/03 08:26）
+考虑到时间是系统的组成部分，所以连接到Win32_OperatingSystem类，查看类的限定符，没有发现Privileges 限定符，说明使用该类不需要特权，枚举该类的方法，发现该类有一个setdatetime
+方法，继续查看该方法的限定符，发现了Privileges 限定符，其值为SeSystemTimePrivilege，说明要使用该方法需要先添加特权。代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObject As SWbemObject
+Dim WMIObjectSet As SWbemObjectSet
+
+Private Sub CommandButton1_Click()
+Set WMIServices = WMILocator.ConnectServer()
+WMIServices.Security_.Privileges.Add wbemPrivilegeSystemtime, True‘添加特权
+Set WMIObjectSet = WMIServices.InstancesOf("Win32_OperatingSystem")
+For Each WMIObject In WMIObjectSet
+WMIObject.setdatetime "20110629170026.000000+480"
+Next
+End Sub
+参数格式为yyyymmdd(日期)hhmmss(时间).000000+480，六个零是用于校准时间差，不详细解释了，+480是因为我们所在的时区和格林威治时间相差8个小时。（看看控制面板中时区选项你就明白了）
+例13、建立共享文件夹,本例把C盘下的VBA文件夹建立共享（请先在C盘下建一个你要共享的文件夹，例子中是VBA文件夹，可能需要刷新一下才能看到结果）。
+不用想，应该连接到Win32_share类，查看类的限定符，没有发现Privileges 限定符，说明使用该类不需要特权，枚举该类的方法，发现该类有一个create方法，继续查看该方法的限定符，没有Privileges 限定符，说明使用该方法不需要特权。代码如下：
+Option Explicit
+
+Dim WMILocator As New SWbemLocator
+Dim WMIServices As SWbemServices
+Dim WMIObject As SWbemObject
+
+Private Sub CommandButton1_Click()
+Set WMIServices = WMILocator.ConnectServer()
+WMIServices.Security_.Privileges.Add wbemPrivilegeSystemtime, True
+Set WMIObject = WMIServices.Get("Win32_share")
+WMIObject.create "c:\vba", "我爱VBA", 0, 10, "sfsfsd"
+End Sub
+"c:\vba"：要建立共享的文件夹的全路径。（要共享的文件夹必须存在，当然你也可以使用Win32_Directory类先建立该文件夹）
+"我爱VBA"：共享名
+0：共享类型（0代表文件夹，当然还可以把磁盘共享）
+10：允许的最大同时连接数
+"sfsfsd"：说明（可以省略）
+如果你细心从头到尾阅读了本贴，你会有一个疑问，我怎么知道那个方法不需要参数。而那个方法又需要参数，参数是什么？很遗憾，那个高中没毕业的家伙没有提供枚举所有类的方法的参数的功能，所以我也没法告诉你。但是，所有WMI类的方法都可以在MSDN上找到用法和参数说明。
+好像到这已经把WMI的使用说完了，但是，能不能实时监测系统是否发生了改变呢？例如，是否有人进行了打印，是否有人插入或拔出U盘，某个服务是否被启动或停止等等。答案是肯定的，这需要订阅WMI的事件，下次再说吧。
